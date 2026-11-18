@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RouteShare - Situational Mobility Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css"/>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Auth Modal -->
+    <div id="authModal" style="z-index: 99999 !important;" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl border w-full max-w-sm p-6 space-y-3.5">
+            <div class="text-center">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl mx-auto flex items-center justify-center text-white text-xl font-bold shadow mb-1.5">🚗</div>
+                <h2 class="text-lg font-bold text-slate-900">RouteShare</h2>
+                <p class="text-xs text-slate-500">Peer-to-peer route overlap carpool platform</p>
+            </div>
+            <div class="flex border-b text-xs font-bold">
+                <button id="tLogin" onclick="setTab(false)" class="flex-1 pb-2 border-b-2 border-indigo-600 text-indigo-600">Log In</button>
+                <button id="tSignup" onclick="setTab(true)" class="flex-1 pb-2 text-slate-400">Sign Up</button>
+            </div>
+            <form onsubmit="doAuth(event)" class="space-y-2.5 text-xs">
+                <input id="u" required placeholder="Username" class="w-full px-3 py-2 border rounded-lg focus:outline-none">
+                <input id="p" type="password" required placeholder="Password" class="w-full px-3 py-2 border rounded-lg focus:outline-none">
+                <select id="r" class="hidden w-full px-3 py-2 border rounded-lg bg-slate-50 font-semibold focus:outline-none">
+                    <option value="driver">🚘 Driver (Offer Seats)</option>
+                    <option value="rider">🙋 Rider (Find Overlap)</option>
+                </select>
+                <div id="err" class="hidden text-xs text-rose-600 bg-rose-50 p-2 rounded-lg font-medium"></div>
+                <button id="btnAuth" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow">Log In</button>
+            </form>
+            <div class="pt-2 border-t flex justify-between items-center text-[11px] text-slate-400">
+                <span>Quick Viva Demo:</span>
+                <div class="space-x-2">
+                    <button type="button" onclick="fill('Rahul Sharma','123','driver')" class="text-indigo-600 font-bold hover:underline">Driver</button>
+                    <button type="button" onclick="fill('Priya Nair','123','rider')" class="text-emerald-600 font-bold hover:underline">Rider</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Navbar -->
+    <header class="bg-white border-b px-4 py-2.5 flex justify-between items-center shadow-sm flex-shrink-0">
+        <div class="flex items-center gap-5">
+            <div class="flex items-center gap-2 cursor-pointer" onclick="showPage('mapPage')">
+                <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">🚗</div>
+                <h1 class="text-sm font-bold text-slate-900 leading-none">RouteShare</h1>
+            </div>
+            <nav class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                <button id="navMap" onclick="showPage('mapPage')" class="px-3 py-1 rounded-lg bg-white text-indigo-700 font-bold shadow-sm">🗺️ Live Map</button>
+                <button id="navDriver" onclick="showPage('driverPage')" class="px-3 py-1 rounded-lg text-slate-600 hover:text-slate-900">🚘 Driver Hub</button>
+                <button id="navRider" onclick="showPage('riderPage')" class="px-3 py-1 rounded-lg text-slate-600 hover:text-slate-900">🙋 Rider Hub</button>
+                <button id="navAnalytics" onclick="showPage('analyticsPage')" class="px-3 py-1 rounded-lg text-slate-600 hover:text-slate-900">📊 Impact & Stats</button>
+                <button id="navDb" onclick="showPage('dbPage')" class="px-3 py-1 rounded-lg text-slate-600 hover:text-slate-900">🧮 Algorithm & DB</button>
+            </nav>
+        </div>
+        <div class="flex items-center gap-2">
+            <div id="userBadge" class="hidden items-center gap-2 px-2 py-1 bg-slate-50 border rounded-lg text-xs">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span id="uName" class="font-bold">User</span>
+                <span id="uRole" class="text-[10px] uppercase font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded shadow-sm border">RIDER</span>
+                <button onclick="toggleRole()" class="text-[10px] text-indigo-600 font-bold hover:underline">Switch</button>
+                <button onclick="logout()" class="text-[10px] text-rose-600 font-bold hover:underline ml-1">Log Out</button>
+            </div>
+            <a href="/api/db/download" class="px-2.5 py-1 bg-slate-50 border rounded-lg text-xs font-semibold flex items-center gap-1">💾 .db</a>
+            <button onclick="resetAll()" class="px-2.5 py-1 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold">Reset</button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 overflow-hidden p-3">
+
+        <!-- TAB 1: LIVE MAP -->
+        <div id="mapPage" class="h-full flex gap-3">
+            <div class="w-3/5 h-full bg-white rounded-xl border p-2 flex flex-col relative shadow-sm">
+                <div id="map" class="flex-1"></div>
+                <div class="absolute bottom-4 left-4 bg-white/95 px-3 py-1.5 rounded-lg border shadow text-[11px] flex items-center gap-3 z-[1000]">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span> Driver Route</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> Rider Trip</span>
+                    <button onclick="testQuickMatch()" class="text-indigo-600 font-bold hover:underline ml-1">⚡ Demo Match Test</button>
+                </div>
+            </div>
+            <div class="w-2/5 h-full flex flex-col gap-3 overflow-y-auto pr-1">
+                <div class="bg-white rounded-xl p-3.5 border shadow-sm space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span id="modeTitle" class="text-xs font-bold uppercase text-slate-700">Rider Commute Search</span>
+                        <span id="clickHint" class="text-[10px] text-indigo-600 font-semibold">Click map for 2 points</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-[11px]">
+                        <div class="p-2 bg-slate-50 border rounded-lg"><span class="text-[10px] text-slate-400 block font-bold">POINT 1</span><span id="pt1" class="font-mono text-slate-700 truncate block">Not selected</span></div>
+                        <div class="p-2 bg-slate-50 border rounded-lg"><span class="text-[10px] text-slate-400 block font-bold">POINT 2</span><span id="pt2" class="font-mono text-slate-700 truncate block">Not selected</span></div>
+                    </div>
+                    <button id="btnAction" onclick="handleMapAction()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow">Find Overlapping Drivers</button>
+                </div>
+                <div id="matchCard" class="hidden bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-2 shadow-sm">
+                    <div class="flex justify-between items-center"><span class="text-xs font-bold text-emerald-900">✨ Overlapping Carpool Found!</span><span id="overlapBadge" class="text-[10px] font-bold bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full">92% Match</span></div>
+                    <div id="matchDetails" class="text-xs text-slate-700 space-y-1"></div>
+                    <button onclick="confirmBooking()" class="w-full py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow">Request Seat in Carpool</button>
+                </div>
+                <div class="bg-white rounded-xl p-3.5 border shadow-sm flex-1 flex flex-col">
+                    <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold uppercase text-slate-700">Available Commuter Routes</span><span id="driverCount" class="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded">4 Drivers</span></div>
+                    <div id="driverList" class="space-y-2 flex-1 overflow-y-auto text-xs"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: DRIVER HUB -->
+        <div id="driverPage" class="hidden h-full flex gap-3">
+            <div class="w-1/2 bg-white rounded-xl border p-4 shadow-sm space-y-3 overflow-y-auto">
+                <div><h2 class="text-sm font-bold text-slate-900">Publish a Shared Journey</h2><p class="text-xs text-slate-500">Offer your empty car seats to commuters travelling along your route</p></div>
+                <form onsubmit="submitDriverRoute(event)" class="space-y-2.5 text-xs">
+                    <div><label class="block font-bold text-slate-600 mb-0.5">Vehicle Details</label><input id="dVehicle" value="Tata Nexon EV" class="w-full p-2 border rounded-lg focus:outline-none"></div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><label class="block font-bold text-slate-600 mb-0.5">Departure Time</label><input id="dTime" value="09:00 AM" class="w-full p-2 border rounded-lg"></div>
+                        <div><label class="block font-bold text-slate-600 mb-0.5">Seats</label><select id="dSeats" class="w-full p-2 border rounded-lg bg-slate-50 font-bold"><option>1</option><option>2</option><option selected>3</option><option>4</option></select></div>
+                    </div>
+                    <div><label class="block font-bold text-slate-600 mb-0.5">Origin Landmark</label><input id="dOrigin" value="Gurugram Cyber City" class="w-full p-2 border rounded-lg"></div>
+                    <div><label class="block font-bold text-slate-600 mb-0.5">Destination Landmark</label><input id="dDest" value="Connaught Place, New Delhi" class="w-full p-2 border rounded-lg"></div>
+                    <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow">Publish Route to Network</button>
+                </form>
+            </div>
+            <div class="w-1/2 bg-white rounded-xl border p-4 shadow-sm flex flex-col"><h3 class="text-xs font-bold text-slate-900 mb-2">Live Active Driver Routes in SQLite</h3><div id="driverTable" class="flex-1 overflow-y-auto space-y-2 text-xs"></div></div>
+        </div>
+
+        <!-- TAB 3: RIDER HUB -->
+        <div id="riderPage" class="hidden h-full flex gap-3">
+            <div class="w-1/2 bg-white rounded-xl border p-4 shadow-sm flex flex-col">
+                <div class="flex justify-between items-center mb-3"><div><h2 class="text-sm font-bold text-slate-900">Rider Commute Feed</h2><p class="text-xs text-slate-500">Live booking activity and ride statuses</p></div><button onclick="testQuickMatch()" class="px-2.5 py-1 bg-emerald-50 text-emerald-700 border rounded-lg text-xs font-bold">⚡ Quick Request</button></div>
+                <div id="ridesFeed" class="flex-1 overflow-y-auto space-y-2 text-xs"></div>
+            </div>
+            <div class="w-1/2 bg-white rounded-xl border p-4 shadow-sm space-y-3">
+                <h3 class="text-xs font-bold text-slate-900">Carpool Cost & Efficiency Breakdown</h3>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-xl"><span class="text-[10px] text-indigo-500 font-bold block uppercase">Commercial Cab (Uber/Ola)</span><span class="text-base font-bold text-slate-800">₹450.00</span><span class="text-[10px] text-slate-400 block mt-0.5">Dedicated vehicle</span></div>
+                    <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-xl"><span class="text-[10px] text-emerald-600 font-bold block uppercase">RouteShare Overlap Fare</span><span class="text-base font-bold text-emerald-700">₹140.00</span><span class="text-[10px] text-emerald-600 font-semibold block mt-0.5">🎉 68% Cost Savings</span></div>
+                </div>
+                <div class="p-3 bg-slate-50 border rounded-xl text-xs space-y-1"><b class="text-slate-800">Why RouteShare is Cheaper:</b><p class="text-slate-500 text-[11px] leading-relaxed">Drivers are already travelling to that destination. Overlap matching utilizes empty car seats without adding dedicated empty vehicle traffic.</p></div>
+            </div>
+        </div>
+
+        <!-- TAB 4: IMPACT & ANALYTICS -->
+        <div id="analyticsPage" class="hidden h-full overflow-y-auto p-4 space-y-4">
+            <div><h2 class="text-base font-bold text-slate-900">Environmental & Economic Impact Dashboard</h2><p class="text-xs text-slate-500">Live analytics compiled from SQLite rides and route overlaps</p></div>
+            <div class="grid grid-cols-4 gap-3">
+                <div class="bg-white p-3.5 rounded-xl border shadow-sm"><span class="text-xs font-bold text-slate-400 uppercase block">Total CO₂ Saved</span><span id="kpiCo2" class="text-xl font-bold text-emerald-600 block mt-1">21.8 kg</span><span class="text-[10px] text-slate-400 block">🌿 3 trees planted equiv.</span></div>
+                <div class="bg-white p-3.5 rounded-xl border shadow-sm"><span class="text-xs font-bold text-slate-400 uppercase block">Commuter Savings</span><span id="kpiMoney" class="text-xl font-bold text-indigo-600 block mt-1">₹3,240</span><span class="text-[10px] text-slate-400 block">💰 Shared fuel economy</span></div>
+                <div class="bg-white p-3.5 rounded-xl border shadow-sm"><span class="text-xs font-bold text-slate-400 uppercase block">Active Carpools</span><span id="kpiDrivers" class="text-xl font-bold text-slate-800 block mt-1">4</span><span class="text-[10px] text-slate-400 block">🚗 Delhi-NCR Network</span></div>
+                <div class="bg-white p-3.5 rounded-xl border shadow-sm"><span class="text-xs font-bold text-slate-400 uppercase block">Detour Accuracy</span><span id="kpiEff" class="text-xl font-bold text-emerald-600 block mt-1">92.4%</span><span class="text-[10px] text-slate-400 block">🎯 Overlap heuristic score</span></div>
+            </div>
+            <div class="bg-white p-4 rounded-xl border shadow-sm"><h3 class="text-xs font-bold text-slate-900 mb-2">Situational Mobility Pipeline</h3><div class="grid grid-cols-3 gap-3 text-xs"><div class="p-2.5 bg-slate-50 border rounded-lg"><b class="text-indigo-700 block mb-0.5">1. Route Ingestion</b><p class="text-slate-500 text-[11px]">Captures driver & rider waypoint coordinates.</p></div><div class="p-2.5 bg-slate-50 border rounded-lg"><b class="text-emerald-700 block mb-0.5">2. Haversine Math</b><p class="text-slate-500 text-[11px]">Computes extra detour arc distance (km).</p></div><div class="p-2.5 bg-slate-50 border rounded-lg"><b class="text-purple-700 block mb-0.5">3. Dynamic Pooling</b><p class="text-slate-500 text-[11px]">Confirms seats and records shared trip in SQLite.</p></div></div></div>
+        </div>
+
+        <!-- TAB 5: ALGORITHM & SQLITE DATABASE INSPECTOR -->
+        <div id="dbPage" class="hidden h-full flex flex-col gap-3 overflow-y-auto p-4">
+            <div class="bg-white p-4 rounded-xl border shadow-sm space-y-2"><h2 class="text-xs font-bold text-slate-900">Matching Algorithm: Mathematical Formulation</h2><div class="p-2.5 bg-slate-900 text-emerald-400 font-mono text-[11px] rounded-lg leading-relaxed">d = 2R · atan2( √[ sin²(Δlat/2) + cos(lat1)·cos(lat2)·sin²(Δlng/2) ], √[ 1 - a ] )<br>Detour = (Dist(Start ➔ Pickup) + Dist(Pickup ➔ Dropoff) + Dist(Dropoff ➔ End)) - Dist(Direct)<br>Constraint: Detour ≤ 4.0 km (Optimal Overlap Heuristic)</div></div>
+            <div class="bg-white p-4 rounded-xl border shadow-sm flex-1 flex flex-col space-y-2.5"><div class="flex justify-between items-center"><div><h3 class="text-xs font-bold text-slate-900">Live SQLite Database Table Inspector</h3><p class="text-[11px] text-slate-500">Querying <code class="font-mono text-indigo-600">routeshare.db</code> directly</p></div><div class="flex gap-1.5"><button onclick="inspectTable('rides')" id="btnTabRides" class="px-2.5 py-1 bg-indigo-600 text-white rounded text-xs font-bold">rides table</button><button onclick="inspectTable('driver_routes')" id="btnTabDrivers" class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-xs font-semibold">driver_routes table</button><button onclick="inspectTable('users')" id="btnTabUsers" class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded text-xs font-semibold">users table</button></div></div><div id="tableOutput" class="flex-1 overflow-x-auto border rounded-lg text-xs"></div></div>
+        </div>
+
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
